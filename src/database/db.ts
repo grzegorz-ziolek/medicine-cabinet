@@ -6,37 +6,50 @@ let db: SQLite.SQLiteDatabase | null = null;
 
 /** Wywołaj raz przy starcie (np. w _layout.tsx) */
 export async function initDatabase(): Promise<void> {
-  // otwieramy DB dopiero w runtime (tu nie ma problemu z `location`)
   db = await SQLite.openDatabaseAsync('apteczka.db');
 
-  await db.execAsync(`
-    CREATE TABLE IF NOT EXISTS tags (
-      uuid TEXT PRIMARY KEY NOT NULL,
-      name TEXT UNIQUE NOT NULL
-    );
-    CREATE TABLE IF NOT EXISTS meds_metadata (
-      uuid TEXT PRIMARY KEY NOT NULL,
-      name TEXT NOT NULL,
-      description TEXT
-    );
-    CREATE TABLE IF NOT EXISTS meds_metadata_tags (
-      metadata_uuid TEXT NOT NULL,
-      tag_uuid      TEXT NOT NULL,
-      PRIMARY KEY (metadata_uuid, tag_uuid),
-      FOREIGN KEY (metadata_uuid) REFERENCES meds_metadata(uuid) ON DELETE CASCADE,
-      FOREIGN KEY (tag_uuid)      REFERENCES tags(uuid)         ON DELETE CASCADE
-    );
-    CREATE TABLE IF NOT EXISTS meds (
-      uuid            TEXT PRIMARY KEY NOT NULL,
-      metadata_uuid   TEXT NOT NULL,
-      quantity        INTEGER,
-      expiration_date TEXT,
-      created_at      TEXT,
-      edited_at       TEXT,
-      FOREIGN KEY (metadata_uuid) REFERENCES meds_metadata(uuid) ON DELETE CASCADE
-    );
-  `);
+  // lista poleceń CREATE do wykonania po kolei
+  const statements = [
+    `CREATE TABLE IF NOT EXISTS tags (
+       uuid TEXT PRIMARY KEY NOT NULL,
+       name TEXT UNIQUE NOT NULL
+     );`,
+
+    `CREATE TABLE IF NOT EXISTS meds_metadata (
+       uuid TEXT PRIMARY KEY NOT NULL,
+       name TEXT NOT NULL,
+       description TEXT
+     );`,
+
+    `CREATE TABLE IF NOT EXISTS meds_metadata_tags (
+       metadata_uuid TEXT NOT NULL,
+       tag_uuid      TEXT NOT NULL,
+       PRIMARY KEY (metadata_uuid, tag_uuid),
+       FOREIGN KEY (metadata_uuid) REFERENCES meds_metadata(uuid) ON DELETE CASCADE,
+       FOREIGN KEY (tag_uuid)      REFERENCES tags(uuid)         ON DELETE CASCADE
+     );`,
+
+    `CREATE TABLE IF NOT EXISTS meds (
+       uuid            TEXT PRIMARY KEY NOT NULL,
+       metadata_uuid   TEXT NOT NULL,
+       quantity        INTEGER,
+       expiration_date TEXT,
+       created_at      TEXT,
+       edited_at       TEXT,
+       FOREIGN KEY (metadata_uuid) REFERENCES meds_metadata(uuid) ON DELETE CASCADE
+     );`,
+  ];
+
+  for (const sql of statements) {
+    try {
+      await db.runAsync(sql);
+    } catch (err: any) {
+      console.error('❌ SQL error:', err?.message, '\n---\n', sql);
+      throw err;                           // przerwie initDatabase i poleci do catch w _layout
+    }
+  }
 }
+
 
 /* ----------  Helpery  ---------- */
 

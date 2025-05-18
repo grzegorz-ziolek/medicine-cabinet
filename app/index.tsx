@@ -1,14 +1,16 @@
-// app/index.tsx
-import { Picker } from '@react-native-picker/picker';
+import { Ionicons } from '@expo/vector-icons';
 import { useRouter } from 'expo-router';
 import React, { useCallback, useEffect, useState } from 'react';
 import {
   ActivityIndicator,
   FlatList,
-  Pressable, StyleSheet,
-  Text, TextInput,
-  View
+  Pressable,
+  StyleSheet,
+  Text,
+  TextInput,
+  View,
 } from 'react-native';
+import DropDownPicker from 'react-native-dropdown-picker';
 import { query } from '../src/database/db';
 
 type MedItem = {
@@ -18,12 +20,15 @@ type MedItem = {
 };
 
 export default function MedListScreen() {
+  /* ---------- local state ---------- */
   const [search, setSearch] = useState('');
   const [sort, setSort] = useState<'az' | 'za'>('az');
+  const [open, setOpen] = useState(false);
   const [data, setData] = useState<MedItem[] | null>(null);
+
   const router = useRouter();
 
-  /* --------  SQL  -------- */
+  /* ---------- SQL ---------- */
   const load = useCallback(async () => {
     const order = sort === 'az' ? 'ASC' : 'DESC';
     const rows = await query<MedItem>(
@@ -37,27 +42,21 @@ export default function MedListScreen() {
     setData(rows);
   }, [sort]);
 
-  useEffect(() => { load(); }, [load]);
+  useEffect(() => {
+    load();
+  }, [load]);
 
-  const filtered = data?.filter(r =>
+  const filtered = data?.filter((r) =>
     r.name.toLowerCase().includes(search.toLowerCase())
   );
 
-  /* --------  UI  -------- */
-  if (data === null) {
-    return (
-      <View style={styles.center}>
-        <ActivityIndicator size="large" />
-      </View>
-    );
-  }
-
+  /* ---------- render helpers ---------- */
   const EmptyState = () => (
     <View style={styles.center}>
       <Pressable style={styles.bigBtn} onPress={() => router.push('/add')}>
         <Text style={styles.bigBtnTxt}>Dodaj lek</Text>
       </Pressable>
-      <Pressable style={styles.bigBtn} onPress={() => {}}>
+      <Pressable style={styles.bigBtn}>
         <Text style={styles.bigBtnTxt}>Importuj dane</Text>
       </Pressable>
     </View>
@@ -72,9 +71,18 @@ export default function MedListScreen() {
     </Pressable>
   );
 
+  /* ---------- UI ---------- */
+  if (data === null) {
+    return (
+      <View style={styles.center}>
+        <ActivityIndicator size="large" />
+      </View>
+    );
+  }
+
   return (
     <View style={styles.container}>
-      {/* ----- NAGŁÓWEK ----- */}
+      {/* ===== nagłówek ===== */}
       <View style={styles.header}>
         <TextInput
           style={styles.search}
@@ -85,18 +93,30 @@ export default function MedListScreen() {
         />
 
         <View style={styles.row}>
-          <Picker
-            selectedValue={sort}
-            onValueChange={v => setSort(v)}
+          <DropDownPicker
+            open={open}
+            value={sort}
+            setOpen={setOpen}
+            setValue={setSort}
+            items={[
+              { label: 'Od A do Z', value: 'az' },
+              { label: 'Od Z do A', value: 'za' },
+            ]}
+
+            containerStyle={{ flex: 1 }}
             style={styles.picker}
-            dropdownIconColor="white"
-          >
-            <Picker.Item label="Od A do Z" value="az" />
-            <Picker.Item label="Od Z do A" value="za" />
-            <Picker.Item label="Od Z do A" value="za" />
-            <Picker.Item label="Od Z do A" value="za" />
-            <Picker.Item label="Od Z do A" value="za" />
-          </Picker>
+            dropDownContainerStyle={styles.pickerList}
+            textStyle={{ color: 'white' }}
+            listItemLabelStyle={{ color: 'white' }}
+            placeholder=""
+            openDirection="DOWN"
+            ArrowDownIconComponent={() => (
+              <Ionicons name="chevron-down" size={18} color="white" />
+            )}
+            ArrowUpIconComponent={() => (
+              <Ionicons name="chevron-up" size={18} color="white" />
+            )}
+          />
 
           <Pressable style={styles.filterBtn} onPress={() => {}}>
             <Text style={{ color: 'white' }}>Filtrowanie</Text>
@@ -104,12 +124,12 @@ export default function MedListScreen() {
         </View>
       </View>
 
-      {/* ----- LISTA / PUSTY STAN ----- */}
+      {/* ===== lista / pusty stan ===== */}
       {filtered?.length ? (
         <FlatList
           data={filtered}
           renderItem={renderItem}
-          keyExtractor={it => it.package_uuid}
+          keyExtractor={(it) => it.package_uuid}
           contentContainerStyle={{ padding: 12 }}
         />
       ) : (
@@ -119,15 +139,17 @@ export default function MedListScreen() {
   );
 }
 
-/* --------  STYLES  -------- */
+/* ---------- style ---------- */
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: '#1a1a1a' },
 
-  /* nagłówek oddzielony dolnym borderem */
   header: {
+    marginTop: 8,
     padding: 12,
+    backgroundColor: '#0f0f0f',
     borderBottomWidth: 1,
     borderBottomColor: '#333',
+    zIndex: 10,
   },
 
   search: {
@@ -139,15 +161,23 @@ const styles = StyleSheet.create({
     marginBottom: 8,
   },
 
-  /* drugi wiersz: sort + filtrowanie */
-  row: { flexDirection: 'row', alignItems: 'center', gap: 8 },
+  row: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    zIndex: 10,
+  },
 
   picker: {
     flex: 1,
-    backgroundColor: '#2a2a2a',
-    color: 'white',
-    borderRadius: 8,
     height: 40,
+    backgroundColor: '#2a2a2a',
+    borderColor: '#2a2a2a',
+  },
+
+  pickerList: {
+    backgroundColor: '#2a2a2a',
+    borderColor: '#2a2a2a',
   },
 
   filterBtn: {
@@ -168,7 +198,9 @@ const styles = StyleSheet.create({
   cardDesc: { color: '#bbb', marginTop: 4 },
 
   center: {
-    flex: 1, alignItems: 'center', justifyContent: 'center',
+    flex: 1,
+    alignItems: 'center',
+    justifyContent: 'center',
     backgroundColor: '#1a1a1a',
   },
   bigBtn: {
