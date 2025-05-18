@@ -30,17 +30,22 @@ export default function RootLayout() {
     );
   }
 
-  /* DB gotowa – renderujemy dolny TabBar */
   return (
     <Tabs
       screenOptions={{
-        tabBarActiveTintColor: 'white',
-        tabBarStyle: { backgroundColor: 'black' },
         headerShown: false,
+        tabBarActiveTintColor: 'white',
+        tabBarLabelPosition: 'below-icon',      // ← ikona nad napisem
+        tabBarStyle: {
+          backgroundColor: 'black',
+          height: 72,                           // ↑ wyższy pasek
+          paddingTop: 8,
+          paddingBottom: 10,
+        },
       }}
     >
       <Tabs.Screen
-        name="index"           // = app/index.tsx
+        name="index"
         options={{
           title: 'Lista leków',
           tabBarIcon: ({ color, size }) => (
@@ -49,7 +54,7 @@ export default function RootLayout() {
         }}
       />
       <Tabs.Screen
-        name="add"             // = app/add.tsx
+        name="add"
         options={{
           title: 'Dodaj lek',
           tabBarIcon: ({ color, size }) => (
@@ -58,7 +63,7 @@ export default function RootLayout() {
         }}
       />
       <Tabs.Screen
-        name="settings"        // = app/settings.tsx
+        name="settings"
         options={{
           title: 'Ustawienia',
           tabBarIcon: ({ color, size }) => (

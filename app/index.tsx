@@ -23,6 +23,7 @@ export default function MedListScreen() {
   const [data, setData] = useState<MedItem[] | null>(null);
   const router = useRouter();
 
+  /* --------  SQL  -------- */
   const load = useCallback(async () => {
     const order = sort === 'az' ? 'ASC' : 'DESC';
     const rows = await query<MedItem>(
@@ -36,16 +37,13 @@ export default function MedListScreen() {
     setData(rows);
   }, [sort]);
 
-  useEffect(() => {
-    load();
-  }, [load]);
+  useEffect(() => { load(); }, [load]);
 
-  // filtr lokalny po wpisanej frazie
   const filtered = data?.filter(r =>
     r.name.toLowerCase().includes(search.toLowerCase())
   );
 
-  /* ------  UI  ------ */
+  /* --------  UI  -------- */
   if (data === null) {
     return (
       <View style={styles.center}>
@@ -59,17 +57,14 @@ export default function MedListScreen() {
       <Pressable style={styles.bigBtn} onPress={() => router.push('/add')}>
         <Text style={styles.bigBtnTxt}>Dodaj lek</Text>
       </Pressable>
-      <Pressable style={styles.bigBtn} onPress={() => {/* import CSV */}}>
+      <Pressable style={styles.bigBtn} onPress={() => {}}>
         <Text style={styles.bigBtnTxt}>Importuj dane</Text>
       </Pressable>
     </View>
   );
 
   const renderItem = ({ item }: { item: MedItem }) => (
-    <Pressable
-      style={styles.card}
-      onPress={() => {/* router.push(`/med/${item.package_uuid}`)  (później) */}}
-    >
+    <Pressable style={styles.card}>
       <Text style={styles.cardTitle}>{item.name}</Text>
       {item.description && (
         <Text style={styles.cardDesc}>{item.description}</Text>
@@ -79,8 +74,8 @@ export default function MedListScreen() {
 
   return (
     <View style={styles.container}>
-      {/* Search + sort */}
-      <View style={styles.topBar}>
+      {/* ----- NAGŁÓWEK ----- */}
+      <View style={styles.header}>
         <TextInput
           style={styles.search}
           placeholder="Wyszukiwana fraza"
@@ -88,20 +83,28 @@ export default function MedListScreen() {
           value={search}
           onChangeText={setSearch}
         />
-        <Picker
-          selectedValue={sort}
-          onValueChange={v => setSort(v)}
-          style={styles.picker}
-          dropdownIconColor="white"
-        >
-          <Picker.Item label="Od A do Z" value="az" />
-          <Picker.Item label="Od Z do A" value="za" />
-        </Picker>
-        <Pressable style={styles.filterBtn} onPress={() => {/* modal tagów */}}>
-          <Text style={{ color: 'white' }}>Filtrowanie</Text>
-        </Pressable>
+
+        <View style={styles.row}>
+          <Picker
+            selectedValue={sort}
+            onValueChange={v => setSort(v)}
+            style={styles.picker}
+            dropdownIconColor="white"
+          >
+            <Picker.Item label="Od A do Z" value="az" />
+            <Picker.Item label="Od Z do A" value="za" />
+            <Picker.Item label="Od Z do A" value="za" />
+            <Picker.Item label="Od Z do A" value="za" />
+            <Picker.Item label="Od Z do A" value="za" />
+          </Picker>
+
+          <Pressable style={styles.filterBtn} onPress={() => {}}>
+            <Text style={{ color: 'white' }}>Filtrowanie</Text>
+          </Pressable>
+        </View>
       </View>
 
+      {/* ----- LISTA / PUSTY STAN ----- */}
       {filtered?.length ? (
         <FlatList
           data={filtered}
@@ -116,33 +119,45 @@ export default function MedListScreen() {
   );
 }
 
-/* ------  Styl  ------ */
+/* --------  STYLES  -------- */
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: '#1a1a1a' },
-  topBar: { padding: 12 },
+
+  /* nagłówek oddzielony dolnym borderem */
+  header: {
+    padding: 12,
+    borderBottomWidth: 1,
+    borderBottomColor: '#333',
+  },
+
   search: {
     backgroundColor: '#2a2a2a',
     borderRadius: 24,
     paddingHorizontal: 16,
     color: 'white',
-    marginBottom: 8,
     height: 40,
+    marginBottom: 8,
   },
+
+  /* drugi wiersz: sort + filtrowanie */
+  row: { flexDirection: 'row', alignItems: 'center', gap: 8 },
+
   picker: {
+    flex: 1,
     backgroundColor: '#2a2a2a',
     color: 'white',
     borderRadius: 8,
-    marginBottom: 8,
     height: 40,
   },
+
   filterBtn: {
-    alignSelf: 'flex-start',
     borderWidth: 1,
     borderColor: 'white',
     paddingHorizontal: 12,
-    paddingVertical: 6,
+    paddingVertical: 8,
     borderRadius: 8,
   },
+
   card: {
     backgroundColor: '#2a2a2a',
     padding: 14,
@@ -151,6 +166,7 @@ const styles = StyleSheet.create({
   },
   cardTitle: { color: 'white', fontSize: 16, fontWeight: '600' },
   cardDesc: { color: '#bbb', marginTop: 4 },
+
   center: {
     flex: 1, alignItems: 'center', justifyContent: 'center',
     backgroundColor: '#1a1a1a',
