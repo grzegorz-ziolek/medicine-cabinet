@@ -1,29 +1,71 @@
-import { DarkTheme, DefaultTheme, ThemeProvider } from '@react-navigation/native';
-import { useFonts } from 'expo-font';
-import { Stack } from 'expo-router';
-import { StatusBar } from 'expo-status-bar';
-import 'react-native-reanimated';
-
-import { useColorScheme } from '@/hooks/useColorScheme';
+// app/_layout.tsx
+import { Ionicons } from '@expo/vector-icons';
+import { Tabs } from 'expo-router';
+import React, { useEffect, useState } from 'react';
+import { ActivityIndicator, Text, View } from 'react-native';
+import { initDatabase } from '../src/database/db';
 
 export default function RootLayout() {
-  const colorScheme = useColorScheme();
-  const [loaded] = useFonts({
-    SpaceMono: require('../assets/fonts/SpaceMono-Regular.ttf'),
-  });
+  const [ready, setReady] = useState(false);
+  const [error, setError] = useState<string | null>(null);
 
-  if (!loaded) {
-    // Async font loading only occurs in development.
-    return null;
+  useEffect(() => {
+    initDatabase()
+      .then(() => setReady(true))
+      .catch(err => setError(err.message));
+  }, []);
+
+  if (error) {
+    return (
+      <View style={{ flex: 1, alignItems: 'center', justifyContent: 'center' }}>
+        <Text>⛔ Błąd DB: {error}</Text>
+      </View>
+    );
+  }
+  if (!ready) {
+    return (
+      <View style={{ flex: 1, alignItems: 'center', justifyContent: 'center' }}>
+        <ActivityIndicator size="large" />
+      </View>
+    );
   }
 
+  /* DB gotowa – renderujemy dolny TabBar */
   return (
-    <ThemeProvider value={colorScheme === 'dark' ? DarkTheme : DefaultTheme}>
-      <Stack>
-        <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
-        <Stack.Screen name="+not-found" />
-      </Stack>
-      <StatusBar style="auto" />
-    </ThemeProvider>
+    <Tabs
+      screenOptions={{
+        tabBarActiveTintColor: 'white',
+        tabBarStyle: { backgroundColor: 'black' },
+        headerShown: false,
+      }}
+    >
+      <Tabs.Screen
+        name="index"           // = app/index.tsx
+        options={{
+          title: 'Lista leków',
+          tabBarIcon: ({ color, size }) => (
+            <Ionicons name="list" color={color} size={size} />
+          ),
+        }}
+      />
+      <Tabs.Screen
+        name="add"             // = app/add.tsx
+        options={{
+          title: 'Dodaj lek',
+          tabBarIcon: ({ color, size }) => (
+            <Ionicons name="pencil" color={color} size={size} />
+          ),
+        }}
+      />
+      <Tabs.Screen
+        name="settings"        // = app/settings.tsx
+        options={{
+          title: 'Ustawienia',
+          tabBarIcon: ({ color, size }) => (
+            <Ionicons name="options" color={color} size={size} />
+          ),
+        }}
+      />
+    </Tabs>
   );
 }
