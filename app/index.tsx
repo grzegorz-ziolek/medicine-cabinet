@@ -1,4 +1,5 @@
 import { Ionicons } from '@expo/vector-icons';
+import { useFocusEffect } from '@react-navigation/native';
 import { useRouter } from 'expo-router';
 import React, { useCallback, useEffect, useState } from 'react';
 import {
@@ -13,16 +14,19 @@ import {
 import DropDownPicker from 'react-native-dropdown-picker';
 import { query } from '../src/database/db';
 
+/* ---------- typ rekordu ---------- */
 type MedItem = {
   package_uuid: string;
   name: string;
   description: string | null;
+  qty: number;              // ⇦ NEW
+  exp: string | null;       // ⇦ NEW
 };
 
 export default function MedListScreen() {
   /* ---------- local state ---------- */
   const [search, setSearch] = useState('');
-  const [sort, setSort] = useState<'az' | 'za'>('az');
+  const [sort, setSort] = useState<'az' | 'za' | 'exp' | 'expd'>('az');
   const [open, setOpen] = useState(false);
   const [data, setData] = useState<MedItem[] | null>(null);
 
@@ -30,21 +34,26 @@ export default function MedListScreen() {
 
   /* ---------- SQL ---------- */
   const load = useCallback(async () => {
-    const order = sort === 'az' ? 'ASC' : 'DESC';
+    let orderClause = 'mm.name COLLATE NOCASE ASC';
+    if (sort === 'za')   orderClause = 'mm.name COLLATE NOCASE DESC';
+    if (sort === 'exp')  orderClause = 'm.expiration_date ASC';
+    if (sort === 'expd') orderClause = 'm.expiration_date DESC';
+
     const rows = await query<MedItem>(
-      `SELECT m.uuid        AS package_uuid,
-              mm.name       AS name,
-              mm.description
+      `SELECT m.uuid               AS package_uuid,
+              mm.name              AS name,
+              mm.description,
+              COALESCE(m.quantity,0)   AS qty,     -- ⇦ NEW
+              m.expiration_date        AS exp      -- ⇦ NEW
          FROM meds m
          JOIN meds_metadata mm ON mm.uuid = m.metadata_uuid
-        ORDER BY mm.name ${order};`
+        ORDER BY ${orderClause};`
     );
     setData(rows);
   }, [sort]);
 
-  useEffect(() => {
-    load();
-  }, [load]);
+  useEffect(() => { load(); }, [load]);
+  useFocusEffect(React.useCallback(() => { load(); }, [load]));
 
   const filtered = data?.filter((r) =>
     r.name.toLowerCase().includes(search.toLowerCase())
@@ -68,6 +77,12 @@ export default function MedListScreen() {
       {item.description && (
         <Text style={styles.cardDesc}>{item.description}</Text>
       )}
+
+      {/* -------- nowy wiersz -------- */}
+      <Text style={styles.cardDesc}>
+        Pozostało: {item.qty} sztuk&nbsp;ważnych&nbsp;do&nbsp;
+        {item.exp ?? '—'}
+      </Text>
     </Pressable>
   );
 
@@ -83,6 +98,7 @@ export default function MedListScreen() {
   return (
     <View style={styles.container}>
       {/* ===== nagłówek ===== */}
+      {/* (bez zmian względem poprzedniej wersji) */}
       <View style={styles.header}>
         <TextInput
           style={styles.search}
@@ -99,10 +115,11 @@ export default function MedListScreen() {
             setOpen={setOpen}
             setValue={setSort}
             items={[
-              { label: 'Od A do Z', value: 'az' },
-              { label: 'Od Z do A', value: 'za' },
+              { label: 'Od A do Z',         value: 'az' },
+              { label: 'Od Z do A',         value: 'za' },
+              { label: 'Data – najbliższa', value: 'exp' },
+              { label: 'Data – najdalsza',  value: 'expd' },
             ]}
-
             containerStyle={{ flex: 1 }}
             style={styles.picker}
             dropDownContainerStyle={styles.pickerList}
