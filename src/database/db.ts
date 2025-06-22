@@ -56,6 +56,12 @@ export async function execute(sql: string, params: any[] = []): Promise<void> {
   await assertDB().runAsync(sql, params);
 }
 
+export function getDB() {
+  if (!db) db = SQLite.openDatabase('apteczka.db');
+  return db;
+}
+
+
 /* -------- operacje wyższego poziomu ------------------------------ */
 export async function addTag(name: string): Promise<string> {
   const trimmed = name.trim();
