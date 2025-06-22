@@ -73,6 +73,10 @@ export default function RootLayout() {
         }}
       />
       <Tabs.Screen
+        name="addProduct"           // plik addProduct.tsx
+        options={{ href: null }}    // NIE pojawia się w tab-barze
+      />
+      <Tabs.Screen
         name="settings"
         options={{
           title: 'Ustawienia',
