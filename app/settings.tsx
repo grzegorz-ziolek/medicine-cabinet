@@ -47,7 +47,7 @@ async function exportToXLS() {
 }
 
 async function importFromXLS() {
-  /* --- wybór pliku --- */
+  /* ---------- wybór pliku ---------- */
   const pick = await DocumentPicker.getDocumentAsync({
     type: [
       'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
@@ -56,61 +56,79 @@ async function importFromXLS() {
   });
   if (pick.type !== 'success') return;
 
-  /* --- czytanie workbooka --- */
+  /* ---------- workbook ---------- */
   const b64 = await FileSystem.readAsStringAsync(pick.assets[0].uri, {
     encoding: FileSystem.EncodingType.Base64,
   });
   const wb = XLSX.read(b64, { type: 'base64' });
 
+  /* minimalna walidacja */
   if (!wb.Sheets.meds || !wb.Sheets.meds_metadata) {
     Alert.alert('Błąd', 'Plik nie zawiera wymaganych arkuszy.');
     return;
   }
 
-  /* --- przygotowanie danych --- */
-  const meds            = XLSX.utils.sheet_to_json(wb.Sheets.meds);
-  const metadata        = XLSX.utils.sheet_to_json(wb.Sheets.meds_metadata);
-  const tags            = XLSX.utils.sheet_to_json(wb.Sheets.tags || []);
-  const metadataTags    = XLSX.utils.sheet_to_json(wb.Sheets.meds_metadata_tags || []);
-
+  /* ---------- helpery ---------- */
   const db = getDB();
 
-  db.transaction(
-    (tx) => {
-      /* 1. FK OFF + wipe --------------------------------------- */
-      tx.executeSql('PRAGMA foreign_keys = OFF');
-      tx.executeSql('DELETE FROM meds');
-      tx.executeSql('DELETE FROM meds_metadata_tags');
-      tx.executeSql('DELETE FROM meds_metadata');
-      tx.executeSql('DELETE FROM tags');
+  const sheet = (name: string) =>
+    XLSX.utils.sheet_to_json(wb.Sheets[name] || [], { defval: null }) as Record<string, any>[];
 
-      /* helper INSERT ----------------------------------------- */
-      const insert = (table: string, row: any) => {
-        const cols = Object.keys(row);
-        const qs   = cols.map(() => '?').join(',');
+  /** zwraca tablicę nazw kolumn istniejących fizycznie w tabeli */
+  const tableCols = async (tx: any, tbl: string) =>
+    (
+      await new Promise<any[]>((resolve) =>
         tx.executeSql(
-          `INSERT INTO ${table} (${cols.join(',')}) VALUES (${qs})`,
-          cols.map((c) => row[c]),
-        );
-      };
+          `PRAGMA table_info(${tbl})`,
+          [],
+          (_, r) => resolve(r.rows._array),
+        ),
+      )
+    ).map((c) => c.name as string);
 
-      /* 2. wstawiamy w bezpiecznej kolejności ----------------- */
-      metadata.forEach((r)     => insert('meds_metadata',      r));
-      tags.forEach((r)         => insert('tags',               r));
-      metadataTags.forEach((r) => insert('meds_metadata_tags', r));
-      meds.forEach((r)         => insert('meds',               r));
+  /** INSERT zgodny co do liczby kolumn (puste null-e uzupełniamy) */
+  const insertRows = async (tx: any, tbl: string, rows: any[]) => {
+    if (!rows.length) return;
+    const cols = await tableCols(tx, tbl);
+    const qs   = cols.map(() => '?').join(',');
 
-      /* 3. FK ON ---------------------------------------------- */
+    for (const r of rows) {
+      const values = cols.map((c) => (c in r ? r[c] : null));
+      tx.executeSql(
+        `INSERT INTO ${tbl} (${cols.join(',')}) VALUES (${qs})`,
+        values,
+      );
+    }
+  };
+
+  /* ---------- właściwy import w 1 transakcji ---------- */
+  try {
+    db.transaction((tx) => {
+      /* FK OFF + wipe */
+      tx.executeSql('PRAGMA foreign_keys = OFF');
+      ['meds', 'meds_metadata_tags', 'meds_metadata', 'tags'].forEach((tbl) =>
+        tx.executeSql(`DELETE FROM ${tbl}`),
+      );
+
+      /* kolejność: metadata → tags → relacja → meds */
+      insertRows(tx, 'meds_metadata',      sheet('meds_metadata'));
+      insertRows(tx, 'tags',               sheet('tags'));
+      insertRows(tx, 'meds_metadata_tags', sheet('meds_metadata_tags'));
+      insertRows(tx, 'meds',               sheet('meds'));
+
       tx.executeSql('PRAGMA foreign_keys = ON');
     },
     (err) => {
       console.error(err);
-      Alert.alert('Błąd', 'Import nie powiódł się.');
+      Alert.alert('Błąd', 'Import nie powiódł się – szczegóły w konsoli.');
     },
     () => {
       Alert.alert('Import', 'Dane zostały zaimportowane.');
-    },
-  );
+    });
+  } catch (e) {
+    console.error(e);
+    Alert.alert('Błąd', 'Import nie powiódł się – sprawdź plik.');
+  }
 }
 
 

@@ -2,20 +2,30 @@
 import { Ionicons } from '@expo/vector-icons';
 import { Tabs } from 'expo-router';
 import React, { useEffect, useState } from 'react';
-import { ActivityIndicator, StyleSheet, Text, View } from 'react-native';
+import {
+  ActivityIndicator,
+  Platform,
+  StyleSheet,
+  Text,
+  View,
+} from 'react-native';
+
 import { initDatabase } from '../src/database/db';
-import { seedDemoData } from '../src/database/seed'; // ← import seeda
+import { seedDemoData } from '../src/database/seed';
+
+import * as NavigationBar from 'expo-navigation-bar';
+import { StatusBar } from 'expo-status-bar';
 
 export default function RootLayout() {
-  const [ready, setReady]   = useState(false);
-  const [error, setError]   = useState<string | null>(null);
+  const [ready, setReady] = useState(false);
+  const [error, setError] = useState<string | null>(null);
 
-  /* -------------- INIT + SEED -------------- */
+  /* ----------- INIT + SEED ----------- */
   useEffect(() => {
     (async () => {
       try {
-        await initDatabase();   // tworzy tabele
-        await seedDemoData();   // dodaje przykładowe dane, jeśli baza pusta
+        await initDatabase();
+        await seedDemoData();
         setReady(true);
       } catch (err: any) {
         setError(err.message || String(err));
@@ -23,7 +33,18 @@ export default function RootLayout() {
     })();
   }, []);
 
-  /* -------------- STANY ŁADOWANIA -------------- */
+  /* ----------- ukryj paski po starcie ----------- */
+  useEffect(() => {
+    if (!ready) return;
+
+    if (Platform.OS === 'android') {
+      NavigationBar.setVisibilityAsync('hidden').catch(() => {});
+      NavigationBar.setBehaviorAsync('immersive').catch(() => {});
+    }
+    /* na iOS wystarczy <StatusBar hidden /> w JSX */
+  }, [ready]);
+
+  /* ----------- STANY ŁADOWANIA ----------- */
   if (error) {
     return (
       <View style={styles.center}>
@@ -39,57 +60,62 @@ export default function RootLayout() {
     );
   }
 
-  /* -------------- BOTTOM TABS -------------- */
+  /* ----------- BOTTOM TABS ----------- */
   return (
-    <Tabs
-      screenOptions={{
-        headerShown: false,
-        tabBarActiveTintColor: 'white',
-        tabBarLabelPosition: 'below-icon',
-        tabBarStyle: {
-          backgroundColor: 'black',
-          height: 72,
-          paddingTop: 8,
-          paddingBottom: 10,
-        },
-      }}
-    >
-      <Tabs.Screen
-        name="index"
-        options={{
-          title: 'Lista leków',
-          tabBarIcon: ({ color, size }) => (
-            <Ionicons name="list" color={color} size={size} />
-          ),
+    <>
+      {/* status-bar schowany, animacja fade */}
+      <StatusBar hidden animated />
+
+      <Tabs
+        screenOptions={{
+          headerShown: false,
+          tabBarActiveTintColor: 'white',
+          tabBarLabelPosition: 'below-icon',
+          tabBarStyle: {
+            backgroundColor: 'black',
+            height: 72,
+            paddingTop: 8,
+            paddingBottom: 10,
+          },
         }}
-      />
-      <Tabs.Screen
-        name="add"
-        options={{
-          title: 'Dodaj lek',
-          tabBarIcon: ({ color, size }) => (
-            <Ionicons name="pencil" color={color} size={size} />
-          ),
-        }}
-      />
-      <Tabs.Screen
-        name="addProduct"           // plik addProduct.tsx
-        options={{ href: null }}    // NIE pojawia się w tab-barze
-      />
-      <Tabs.Screen
-        name="settings"
-        options={{
-          title: 'Ustawienia',
-          tabBarIcon: ({ color, size }) => (
-            <Ionicons name="options" color={color} size={size} />
-          ),
-        }}
-      />
-    </Tabs>
+      >
+        <Tabs.Screen
+          name="index"
+          options={{
+            title: 'Lista leków',
+            tabBarIcon: ({ color, size }) => (
+              <Ionicons name="list" color={color} size={size} />
+            ),
+          }}
+        />
+        <Tabs.Screen
+          name="add"
+          options={{
+            title: 'Dodaj lek',
+            tabBarIcon: ({ color, size }) => (
+              <Ionicons name="pencil" color={color} size={size} />
+            ),
+          }}
+        />
+        <Tabs.Screen
+          name="addProduct"
+          options={{ href: null }}
+        />
+        <Tabs.Screen
+          name="settings"
+          options={{
+            title: 'Ustawienia',
+            tabBarIcon: ({ color, size }) => (
+              <Ionicons name="options" color={color} size={size} />
+            ),
+          }}
+        />
+      </Tabs>
+    </>
   );
 }
 
-/* -------------- STYLES -------------- */
+/* ----------- STYLES ----------- */
 const styles = StyleSheet.create({
   center: {
     flex: 1,
