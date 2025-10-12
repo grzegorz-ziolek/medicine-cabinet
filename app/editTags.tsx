@@ -96,7 +96,7 @@ export default function EditTagsScreen() {
     <SafeAreaView style={styles.container}>
       {/* Header */}
       <View style={styles.header}>
-        <Pressable onPress={() => router.back()} style={styles.backButton}>
+        <Pressable onPress={() => router.replace('/settings')} style={styles.backButton}>
           <Ionicons name="arrow-back" size={24} color={COLORS.TEXT_PRIMARY} />
         </Pressable>
         <Text style={styles.headerTitle}>Edycja tagów</Text>
