@@ -1,4 +1,5 @@
 import { Ionicons } from '@expo/vector-icons';
+import DateTimePicker from '@react-native-community/datetimepicker';
 import { useFocusEffect } from '@react-navigation/native';
 import { useRouter } from 'expo-router';
 import React, { useCallback, useEffect, useState } from 'react';
@@ -6,6 +7,7 @@ import {
   ActivityIndicator,
   FlatList,
   Pressable,
+  ScrollView,
   StyleSheet,
   Text,
   TextInput,
@@ -24,12 +26,45 @@ type MedItem = {
   exp: string | null;
 };
 
+type DateFilter = 'all' | 'expired' | 'expiring30' | 'longer30' | 'custom';
+
+type FilterState = {
+  dateFilter: DateFilter;
+  selectedTags: string[];
+  customDateFrom: string;
+  customDateTo: string;
+};
+
+type Tag = {
+  uuid: string;
+  name: string;
+};
+
 export default function MedListScreen() {
   // Local state
   const [search, setSearch] = useState('');
   const [sort, setSort] = useState<'az' | 'za' | 'exp' | 'expd'>('az');
   const [open, setOpen] = useState(false);
   const [data, setData] = useState<MedItem[] | null>(null);
+  
+  // Filter state
+  const [showFilter, setShowFilter] = useState(false);
+  const today = new Date().toISOString().split('T')[0];
+  const [activeFilters, setActiveFilters] = useState<FilterState>({ 
+    dateFilter: 'all', 
+    selectedTags: [], 
+    customDateFrom: today, 
+    customDateTo: today 
+  });
+  const [tempFilters, setTempFilters] = useState<FilterState>({ 
+    dateFilter: 'all', 
+    selectedTags: [], 
+    customDateFrom: today, 
+    customDateTo: today 
+  });
+  const [allTags, setAllTags] = useState<Tag[]>([]);
+  const [showDatePicker, setShowDatePicker] = useState(false);
+  const [datePickerMode, setDatePickerMode] = useState<'from' | 'to'>('from');
 
   const router = useRouter();
 
@@ -40,25 +75,135 @@ export default function MedListScreen() {
     if (sort === 'exp')  orderClause = 'm.expiration_date ASC';
     if (sort === 'expd') orderClause = 'm.expiration_date DESC';
 
+    let whereClause = '';
+    const params: any[] = [];
+    
+    // Date filters
+    const todayStr = new Date().toISOString().split('T')[0];
+    const in30Days = new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString().split('T')[0];
+    
+    if (activeFilters.dateFilter === 'expired') {
+      whereClause = 'WHERE m.expiration_date < ?';
+      params.push(todayStr);
+    } else if (activeFilters.dateFilter === 'expiring30') {
+      whereClause = 'WHERE m.expiration_date >= ? AND m.expiration_date <= ?';
+      params.push(todayStr, in30Days);
+    } else if (activeFilters.dateFilter === 'longer30') {
+      whereClause = 'WHERE m.expiration_date > ?';
+      params.push(in30Days);
+    } else if (activeFilters.dateFilter === 'custom') {
+      whereClause = 'WHERE m.expiration_date >= ? AND m.expiration_date <= ?';
+      params.push(activeFilters.customDateFrom, activeFilters.customDateTo);
+    }
+    
+    // Tag filters
+    if (activeFilters.selectedTags.length > 0) {
+      const tagPlaceholders = activeFilters.selectedTags.map(() => '?').join(',');
+      const tagCondition = `(
+        m.uuid IN (
+          SELECT mt.package_uuid FROM meds_tags mt WHERE mt.tag_uuid IN (${tagPlaceholders})
+        ) OR
+        mm.uuid IN (
+          SELECT mmt.metadata_uuid FROM meds_metadata_tags mmt WHERE mmt.tag_uuid IN (${tagPlaceholders})
+        )
+      )`;
+      
+      if (whereClause) {
+        whereClause += ` AND ${tagCondition}`;
+      } else {
+        whereClause = `WHERE ${tagCondition}`;
+      }
+      params.push(...activeFilters.selectedTags, ...activeFilters.selectedTags);
+    }
+
     const rows = await query<MedItem>(
       `SELECT m.uuid               AS package_uuid,
               mm.name              AS name,
               mm.description,
-              COALESCE(m.quantity,0)   AS qty,     -- ⇦ NEW
-              m.expiration_date        AS exp      -- ⇦ NEW
+              COALESCE(m.quantity,0)   AS qty,
+              m.expiration_date        AS exp
          FROM meds m
          JOIN meds_metadata mm ON mm.uuid = m.metadata_uuid
-        ORDER BY ${orderClause};`
+        ${whereClause}
+        ORDER BY ${orderClause};`,
+      params
     );
     setData(rows);
-  }, [sort]);
+  }, [sort, activeFilters]);
+  
+  // Load all tags
+  const loadTags = useCallback(async () => {
+    const tags = await query<Tag>(
+      `SELECT DISTINCT uuid, name FROM tags ORDER BY name COLLATE NOCASE ASC`
+    );
+    setAllTags(tags);
+  }, []);
 
   useEffect(() => { load(); }, [load]);
-  useFocusEffect(React.useCallback(() => { load(); }, [load]));
+  useEffect(() => { loadTags(); }, [loadTags]);
+  useFocusEffect(React.useCallback(() => { load(); loadTags(); }, [load, loadTags]));
 
   const filtered = data?.filter((r) =>
     r.name.toLowerCase().includes(search.toLowerCase())
   );
+  
+  // Filter handlers
+  const openFilter = () => {
+    setTempFilters(activeFilters);
+    setShowFilter(true);
+  };
+  
+  const applyFilters = () => {
+    setActiveFilters(tempFilters);
+    setShowFilter(false);
+  };
+  
+  const resetFilters = () => {
+    const resetState = { dateFilter: 'all' as DateFilter, selectedTags: [], customDateFrom: today, customDateTo: today };
+    setActiveFilters(resetState);
+    setTempFilters(resetState);
+    setShowFilter(false);
+  };
+  
+  const toggleTag = (tagUuid: string) => {
+    setTempFilters(prev => ({
+      ...prev,
+      selectedTags: prev.selectedTags.includes(tagUuid)
+        ? prev.selectedTags.filter(id => id !== tagUuid)
+        : [...prev.selectedTags, tagUuid]
+    }));
+  };
+  
+  const setDateFilter = (filter: DateFilter) => {
+    setTempFilters(prev => ({ ...prev, dateFilter: filter }));
+  };
+  
+  const hasActiveFilters = activeFilters.dateFilter !== 'all' || activeFilters.selectedTags.length > 0;
+  
+  const formatDate = (dateStr: string) => {
+    const date = new Date(dateStr);
+    return date.toLocaleDateString('pl-PL', { day: '2-digit', month: '2-digit', year: 'numeric' });
+  };
+  
+  const getCustomDateLabel = () => {
+    return `Od ${formatDate(tempFilters.customDateFrom)} do ${formatDate(tempFilters.customDateTo)}`;
+  };
+  
+  const openDatePicker = (mode: 'from' | 'to') => {
+    setDatePickerMode(mode);
+    setShowDatePicker(true);
+  };
+  
+  const handleDateChange = (event: any, selectedDate?: Date) => {
+    setShowDatePicker(false);
+    if (selectedDate) {
+      const dateStr = selectedDate.toISOString().split('T')[0];
+      setTempFilters(prev => ({
+        ...prev,
+        [datePickerMode === 'from' ? 'customDateFrom' : 'customDateTo']: dateStr
+      }));
+    }
+  };
 
   // Render helpers
   const EmptyState = () => (
@@ -113,8 +258,8 @@ export default function MedListScreen() {
             <Pressable onPress={() => setOpen(!open)} style={styles.iconButton}>
               <Ionicons name="swap-vertical" size={18} color={COLORS.TEXT_MUTED} />
             </Pressable>
-            <Pressable onPress={() => {}} style={styles.iconButton}>
-              <Ionicons name="filter" size={18} color={COLORS.TEXT_MUTED} />
+            <Pressable onPress={openFilter} style={styles.iconButton}>
+              <Ionicons name="filter" size={18} color={hasActiveFilters ? COLORS.WHITE : COLORS.TEXT_MUTED} />
             </Pressable>
           </View>
         </View>
@@ -141,6 +286,91 @@ export default function MedListScreen() {
             </Pressable>
           ))}
         </View>
+      )}
+      
+      {/* Filter Modal */}
+      {showFilter && (
+        <View style={styles.filterModal}>
+          <View style={styles.filterContent}>
+            <ScrollView style={styles.filterScrollArea} showsVerticalScrollIndicator={false}>
+              <Text style={styles.filterSectionTitle}>Data ważności</Text>
+              
+              {[
+                { label: 'Wszystkie', value: 'all' },
+                { label: 'Przeterminowane', value: 'expired' },
+                { label: 'Wygasające w ciągu 30 dni', value: 'expiring30' },
+                { label: 'Dłużej niż 30 dni', value: 'longer30' },
+              ].map(item => (
+                <Pressable
+                  key={item.value}
+                  onPress={() => setDateFilter(item.value as DateFilter)}
+                  style={styles.filterOption}
+                >
+                  <View style={[styles.radioButton, tempFilters.dateFilter === item.value && styles.radioButtonSelected]} />
+                  <Text style={styles.filterOptionText}>{item.label}</Text>
+                </Pressable>
+              ))}
+              
+              <Pressable
+                onPress={() => setDateFilter('custom')}
+                style={styles.filterOption}
+              >
+                <View style={[styles.radioButton, tempFilters.dateFilter === 'custom' && styles.radioButtonSelected]} />
+                <View style={styles.customDateContainer}>
+                  <Text style={styles.filterOptionText}>Od </Text>
+                  <Text style={styles.dateText}>{formatDate(tempFilters.customDateFrom)}</Text>
+                  <Pressable onPress={() => openDatePicker('from')} style={styles.calendarButtonInline}>
+                    <Ionicons name="calendar-outline" size={16} color={COLORS.TEXT_MUTED} />
+                  </Pressable>
+                  <Text style={styles.filterOptionText}> do </Text>
+                  <Text style={styles.dateText}>{formatDate(tempFilters.customDateTo)}</Text>
+                  <Pressable onPress={() => openDatePicker('to')} style={styles.calendarButtonInline}>
+                    <Ionicons name="calendar-outline" size={16} color={COLORS.TEXT_MUTED} />
+                  </Pressable>
+                </View>
+              </Pressable>
+              
+              <Text style={[styles.filterSectionTitle, { marginTop: 32 }]}>Tagi</Text>
+              
+              <View style={styles.tagsContainer}>
+                {allTags.map(tag => (
+                  <Pressable
+                    key={tag.uuid}
+                    onPress={() => toggleTag(tag.uuid)}
+                    style={[
+                      styles.filterTag,
+                      tempFilters.selectedTags.includes(tag.uuid) && styles.filterTagSelected
+                    ]}
+                  >
+                    <Text style={[
+                      styles.filterTagText,
+                      tempFilters.selectedTags.includes(tag.uuid) && styles.filterTagTextSelected
+                    ]}>
+                      {tag.name}
+                    </Text>
+                  </Pressable>
+                ))}
+              </View>
+            </ScrollView>
+            
+            <View style={styles.filterButtons}>
+              <Pressable style={[styles.filterBtn, styles.filterBtnReset]} onPress={resetFilters}>
+                <Text style={styles.filterBtnText}>Resetuj</Text>
+              </Pressable>
+              <Pressable style={[styles.filterBtn, styles.filterBtnApply]} onPress={applyFilters}>
+                <Text style={styles.filterBtnText}>Zastosuj</Text>
+              </Pressable>
+            </View>
+          </View>
+        </View>
+      )}
+      
+      {showDatePicker && (
+        <DateTimePicker
+          value={new Date(datePickerMode === 'from' ? tempFilters.customDateFrom : tempFilters.customDateTo)}
+          mode="date"
+          onChange={handleDateChange}
+        />
       )}
 
       {/*  List  */}
@@ -244,4 +474,125 @@ const styles = StyleSheet.create({
     marginVertical: 10,
   },
   bigBtnTxt: { color: COLORS.WHITE, fontSize: 16 },
+  
+  // Filter styles
+  filterModal: {
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    right: 0,
+    bottom: 0,
+    backgroundColor: 'rgba(0,0,0,0.8)',
+    zIndex: 40,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  filterContent: {
+    backgroundColor: COLORS.BG,
+    borderRadius: 12,
+    width: '85%',
+    maxHeight: '80%',
+    flexDirection: 'column',
+  },
+  filterScrollArea: {
+    padding: 24,
+    paddingBottom: 0,
+  },
+  filterSectionTitle: {
+    color: COLORS.TEXT_MUTED,
+    fontSize: 18,
+    fontWeight: '600',
+    marginBottom: 16,
+  },
+  filterOption: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingVertical: 12,
+  },
+  radioButton: {
+    width: 20,
+    height: 20,
+    borderRadius: 10,
+    borderWidth: 2,
+    borderColor: COLORS.TEXT_MUTED,
+    marginRight: 12,
+  },
+  radioButtonSelected: {
+    backgroundColor: COLORS.WHITE,
+    borderColor: COLORS.WHITE,
+  },
+  filterOptionText: {
+    color: COLORS.TEXT_PRIMARY,
+    fontSize: 16,
+  },
+  tagsContainer: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 8,
+    marginBottom: 24,
+  },
+  filterTag: {
+    backgroundColor: COLORS.TAG,
+    borderRadius: 16,
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+    borderWidth: 1,
+    borderColor: COLORS.TAG,
+  },
+  filterTagSelected: {
+    backgroundColor: COLORS.DANGER,
+    borderColor: COLORS.DANGER,
+  },
+  filterTagText: {
+    color: COLORS.TEXT_SECONDARY,
+    fontSize: 14,
+  },
+  filterTagTextSelected: {
+    color: COLORS.WHITE,
+  },
+  filterButtons: {
+    flexDirection: 'row',
+    gap: 12,
+    padding: 24,
+    paddingTop: 16,
+    borderTopWidth: 1,
+    borderTopColor: COLORS.BORDER_LIGHT,
+  },
+  filterBtn: {
+    flex: 1,
+    paddingVertical: 12,
+    borderRadius: 8,
+    alignItems: 'center',
+  },
+  filterBtnReset: {
+    backgroundColor: 'transparent',
+    borderWidth: 1,
+    borderColor: COLORS.TEXT_MUTED,
+  },
+  filterBtnApply: {
+    backgroundColor: COLORS.DANGER,
+  },
+  filterBtnText: {
+    color: COLORS.WHITE,
+    fontSize: 16,
+    fontWeight: '600',
+  },
+  calendarButton: {
+    marginLeft: 'auto',
+    padding: 4,
+  },
+  customDateContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    flex: 1,
+  },
+  dateText: {
+    color: COLORS.TEXT_PRIMARY,
+    fontSize: 16,
+    fontWeight: '500',
+  },
+  calendarButtonInline: {
+    padding: 2,
+    marginLeft: 4,
+  },
 });
