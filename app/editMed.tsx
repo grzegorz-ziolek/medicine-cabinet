@@ -172,14 +172,14 @@ export default function EditMedScreen() {
             `SELECT uuid, name FROM meds_metadata WHERE uuid = ? LIMIT 1`,
             [currentProduct.uuid]
           );
-          if (refreshedProduct[0] && refreshedProduct[0].name !== currentProduct.name) {
+          if (refreshedProduct[0]) {
             setCurrentProduct(refreshedProduct[0]);
           }
         } catch (error) {
           console.error('Failed to refresh product data', error);
         }
       })();
-    }, [])
+    }, [currentProduct?.uuid])
   );
 
 

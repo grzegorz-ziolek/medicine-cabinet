@@ -38,15 +38,7 @@ function AddProductScreen() {
   const [modalMessage, setModalMessage] = useState('');
   const [isProcessing, setIsProcessing] = useState(false);
 
-  // Clear fields for new product
-  useEffect(() => {
-    setName('');
-    setSubst('');
-    setDesc('');
-    setTags([]);
-    setTagQ('');
-    setTagsDb([]);
-  }, []);
+
 
   // Tag search
   useEffect(() => {

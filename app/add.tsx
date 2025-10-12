@@ -68,7 +68,7 @@ export default function AddMedScreen() {
   // Refresh product data on focus
   useFocusEffect(
     React.useCallback(() => {
-      if (!preselect || !product) return;
+      if (!preselect) return;
       
       (async () => {
         const refreshedProduct = await query<Row>(
@@ -79,7 +79,7 @@ export default function AddMedScreen() {
           setProduct(refreshedProduct[0]);
         }
       })();
-    }, [preselect, product])
+    }, [preselect])
   );
 
   // Live search of products
