@@ -17,7 +17,7 @@ type Row = { uuid: string; name: string };
 export default function AddProductScreen() {
   const router = useRouter();
 
-  /* ---------- formularz ---------- */
+  /*  formularz */
   const [name, setName]       = useState('');
   const [substance, setSubst] = useState('');
   const [desc, setDesc]       = useState('');
@@ -26,7 +26,7 @@ export default function AddProductScreen() {
   const [tagsDb, setTagsDb] = useState<Row[]>([]);
   const [tags, setTags]   = useState<Row[]>([]);
 
-  /* ---------- live-search tag ---------- */
+  /* live-search tag */
   useEffect(() => {
     if (!tagQ) return setTagsDb([]);
     query<Row>(
@@ -37,7 +37,7 @@ export default function AddProductScreen() {
     ).then(setTagsDb);
   }, [tagQ]);
 
-  /* ---------- zapis ---------- */
+  /*  zapisz */
   const save = async () => {
     if (!name.trim()) {
       Alert.alert('Błąd', 'Pole „Nazwa” jest wymagane.');
@@ -53,7 +53,7 @@ export default function AddProductScreen() {
 
   const cancel = () => router.replace('/add');
 
-  /* ------------------- UI ------------------- */
+  /*  UI  */
   return (
     <SafeAreaView style={styles.safe}>
       {/* nagłówek */}
@@ -86,7 +86,7 @@ export default function AddProductScreen() {
           onChangeText={setTagQ}
         />
 
-        {/* dropdown tagów – View zamiast FlatList */}
+        {/* dropdown tagów – View zamiast FlatList? */}
         {tagQ.length > 0 && (
           <View style={styles.dropdown}>
             {[...tagsDb, { uuid: 'new', name: `➕ Dodaj „${tagQ}”` }].map(item => (
@@ -134,7 +134,7 @@ export default function AddProductScreen() {
   );
 }
 
-/* ---------- styles ---------- */
+/*  styles  */
 const COLOR_BG = '#0e0e0e';
 const COLOR_BODY = '#262626';
 const COLOR_BORDER = '#555';

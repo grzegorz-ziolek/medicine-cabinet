@@ -1,4 +1,3 @@
-// app/_layout.tsx
 import { Ionicons } from '@expo/vector-icons';
 import { Tabs } from 'expo-router';
 import React, { useEffect, useState } from 'react';
@@ -20,7 +19,7 @@ export default function RootLayout() {
   const [ready, setReady] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  /* ----------- INIT + SEED ----------- */
+  /* INIT + SEED danych */
   useEffect(() => {
     (async () => {
       try {
@@ -33,7 +32,7 @@ export default function RootLayout() {
     })();
   }, []);
 
-  /* ----------- ukryj paski po starcie ----------- */
+  /* ukrycie paskó systemowych - TODO! bo nie działa dla nawigacyjnego */
   useEffect(() => {
     if (!ready) return;
 
@@ -41,10 +40,9 @@ export default function RootLayout() {
       NavigationBar.setVisibilityAsync('hidden').catch(() => {});
       NavigationBar.setBehaviorAsync('immersive').catch(() => {});
     }
-    /* na iOS wystarczy <StatusBar hidden /> w JSX */
   }, [ready]);
 
-  /* ----------- STANY ŁADOWANIA ----------- */
+  /* DB errory */
   if (error) {
     return (
       <View style={styles.center}>
@@ -60,10 +58,10 @@ export default function RootLayout() {
     );
   }
 
-  /* ----------- BOTTOM TABS ----------- */
+  /* zakładki główne */
   return (
     <>
-      {/* status-bar schowany, animacja fade */}
+      {/* schowanie status bar i animacja fade */}
       <StatusBar hidden animated />
 
       <Tabs
@@ -115,7 +113,7 @@ export default function RootLayout() {
   );
 }
 
-/* ----------- STYLES ----------- */
+/* STYLES */
 const styles = StyleSheet.create({
   center: {
     flex: 1,

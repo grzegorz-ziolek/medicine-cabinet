@@ -17,7 +17,7 @@ import * as Sharing from 'expo-sharing';
 import * as XLSX from 'xlsx';
 import { getDB } from '../src/database/db';
 
-/* --------------- helpers --------------- */
+/*  helpers  */
 async function wipeDB() {
   await execute('DELETE FROM meds;');
   await execute('DELETE FROM meds_metadata_tags;');
@@ -26,7 +26,7 @@ async function wipeDB() {
 }
 
 async function exportToXLS() {
-  /* pobierz wszystkie tabelki w JSON */
+  /* pobierz wszystko w JSON */
   const meds       = await query('SELECT * FROM meds');
   const metadata   = await query('SELECT * FROM meds_metadata');
   const tags       = await query('SELECT * FROM tags');
@@ -47,7 +47,7 @@ async function exportToXLS() {
 }
 
 async function importFromXLS() {
-  /* ---------- wybór pliku ---------- */
+  /*  wybór pliku  */
   const pick = await DocumentPicker.getDocumentAsync({
     type: [
       'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
@@ -56,19 +56,19 @@ async function importFromXLS() {
   });
   if (pick.type !== 'success') return;
 
-  /* ---------- workbook ---------- */
+  /*  workbook  */
   const b64 = await FileSystem.readAsStringAsync(pick.assets[0].uri, {
     encoding: FileSystem.EncodingType.Base64,
   });
   const wb = XLSX.read(b64, { type: 'base64' });
 
-  /* minimalna walidacja */
+  /*  walidacja */
   if (!wb.Sheets.meds || !wb.Sheets.meds_metadata) {
     Alert.alert('Błąd', 'Plik nie zawiera wymaganych arkuszy.');
     return;
   }
 
-  /* ---------- helpery ---------- */
+  /*  helpery  */
   const db = getDB();
 
   const sheet = (name: string) =>
@@ -86,7 +86,7 @@ async function importFromXLS() {
       )
     ).map((c) => c.name as string);
 
-  /** INSERT zgodny co do liczby kolumn (puste null-e uzupełniamy) */
+  /** INSERT , puste null-e uzupełniane) */
   const insertRows = async (tx: any, tbl: string, rows: any[]) => {
     if (!rows.length) return;
     const cols = await tableCols(tx, tbl);
@@ -101,10 +101,8 @@ async function importFromXLS() {
     }
   };
 
-  /* ---------- właściwy import w 1 transakcji ---------- */
   try {
     db.transaction((tx) => {
-      /* FK OFF + wipe */
       tx.executeSql('PRAGMA foreign_keys = OFF');
       ['meds', 'meds_metadata_tags', 'meds_metadata', 'tags'].forEach((tbl) =>
         tx.executeSql(`DELETE FROM ${tbl}`),

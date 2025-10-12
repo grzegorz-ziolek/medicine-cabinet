@@ -31,7 +31,7 @@ export default function AddMedScreen() {
   const [tagsDb, setTagsDb] = useState<Row[]>([]);
   const [tags,   setTags]   = useState<Row[]>([]);
 
-  /* ---- jeśli wracamy z addProduct z ?preselect=uuid ---- */
+  /*powrót z addProduct z ?preselect=uuid */
   useEffect(() => {
     if (!preselect || product) return;
     query<Row>(
@@ -40,10 +40,10 @@ export default function AddMedScreen() {
     ).then(r => r[0] && setProduct(r[0]));
   }, [preselect, product]);
 
-  /* ---- auto-reset przy każdym focusie zakładki ------------ */
+  /* auto-reset przy focusie */
   useFocusEffect(
     React.useCallback(() => {
-      if (preselect) return;                // zachowaj stan po addProduct
+      if (preselect) return;  // to jest zachowaj stan po addProduct
 
       setProductQ('');   setProducts([]);   setProduct(null);
       setExpiry('');     setQty('');
@@ -51,7 +51,7 @@ export default function AddMedScreen() {
     }, [preselect])
   );
 
-  /* ---- live search: produkty ------------------------------ */
+  /* live search: produkty */
   useEffect(() => {
     if (!productQ) return setProducts([]);
     query<Row>(
@@ -62,7 +62,7 @@ export default function AddMedScreen() {
     ).then(setProducts);
   }, [productQ]);
 
-  /* ---- live search: tagi ---------------------------------- */
+  /*  live search: tagi */
   useEffect(() => {
     if (!tagQ) return setTagsDb([]);
     query<Row>(
@@ -73,7 +73,7 @@ export default function AddMedScreen() {
     ).then(setTagsDb);
   }, [tagQ]);
 
-  /* ---------- zapis ---------- */
+  /*  zapis  */
   const save = async () => {
     if (!product) return;
     await addMedicationPackage(
@@ -87,10 +87,10 @@ export default function AddMedScreen() {
          VALUES (?, ?)`,
         [product.uuid, t.uuid],
       );
-    router.replace('/'); // powrót na listę
+    router.replace('/'); // to wraca na listę
   };
 
-  /* ---------- UI ---------- */
+  /*  UI  */
   return (
     <SafeAreaView style={styles.safe}>
       {/* nagłówek z wyszukiwarką produktu */}
@@ -103,8 +103,7 @@ export default function AddMedScreen() {
             placeholderTextColor="#999"
             value={product ? product.name : productQ}
             editable={!product}
-            onChangeText={(txt) => {
-              /* gdy użytkownik zaczyna pisać, wyczyść ewentualnie wybrany produkt */
+            onChangeText={(txt) => { // czyszczenie jeśli pisze
               if (product) setProduct(null);
               setProductQ(txt);
             }}
@@ -211,7 +210,7 @@ export default function AddMedScreen() {
   );
 }
 
-/* ---------- styles ---------- */
+/* styles */
 const COLOR_BG   = '#0e0e0e';
 const COLOR_BODY = '#262626';
 const COLOR_BORDER = '#555';

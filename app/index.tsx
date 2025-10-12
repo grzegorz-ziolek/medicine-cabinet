@@ -14,17 +14,17 @@ import {
 import DropDownPicker from 'react-native-dropdown-picker';
 import { query } from '../src/database/db';
 
-/* ---------- typ rekordu ---------- */
+/* typ rekordu */
 type MedItem = {
   package_uuid: string;
   name: string;
   description: string | null;
-  qty: number;              // ⇦ NEW
-  exp: string | null;       // ⇦ NEW
+  qty: number;
+  exp: string | null;
 };
 
 export default function MedListScreen() {
-  /* ---------- local state ---------- */
+  /*  local state  */
   const [search, setSearch] = useState('');
   const [sort, setSort] = useState<'az' | 'za' | 'exp' | 'expd'>('az');
   const [open, setOpen] = useState(false);
@@ -32,7 +32,7 @@ export default function MedListScreen() {
 
   const router = useRouter();
 
-  /* ---------- SQL ---------- */
+  /*  SQL  */
   const load = useCallback(async () => {
     let orderClause = 'mm.name COLLATE NOCASE ASC';
     if (sort === 'za')   orderClause = 'mm.name COLLATE NOCASE DESC';
@@ -59,7 +59,7 @@ export default function MedListScreen() {
     r.name.toLowerCase().includes(search.toLowerCase())
   );
 
-  /* ---------- render helpers ---------- */
+  /*  render helpers  */
   const EmptyState = () => (
     <View style={styles.center}>
       <Pressable style={styles.bigBtn} onPress={() => router.push('/add')}>
@@ -78,7 +78,7 @@ export default function MedListScreen() {
         <Text style={styles.cardDesc}>{item.description}</Text>
       )}
 
-      {/* -------- nowy wiersz -------- */}
+      {/* TODO! zmienić formatowanie i UI! */}
       <Text style={styles.cardDesc}>
         Pozostało: {item.qty} sztuk&nbsp;ważnych&nbsp;do&nbsp;
         {item.exp ?? '—'}
@@ -86,7 +86,7 @@ export default function MedListScreen() {
     </Pressable>
   );
 
-  /* ---------- UI ---------- */
+  /*  UI  */
   if (data === null) {
     return (
       <View style={styles.center}>
@@ -97,8 +97,8 @@ export default function MedListScreen() {
 
   return (
     <View style={styles.container}>
-      {/* ===== nagłówek ===== */}
-      {/* (bez zmian względem poprzedniej wersji) */}
+      {/*  nagłówek */}
+      {/* TODO! Refaktor widoku */}
       <View style={styles.header}>
         <TextInput
           style={styles.search}
@@ -141,7 +141,7 @@ export default function MedListScreen() {
         </View>
       </View>
 
-      {/* ===== lista / pusty stan ===== */}
+      {/*  lista i pusty stan  */}
       {filtered?.length ? (
         <FlatList
           data={filtered}
@@ -156,7 +156,7 @@ export default function MedListScreen() {
   );
 }
 
-/* ---------- style ---------- */
+/*  style  */
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: '#1a1a1a' },
 
