@@ -4,6 +4,7 @@ import { useFocusEffect } from '@react-navigation/native';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import React, { useEffect, useState } from 'react';
 import {
+  Alert,
   Pressable,
   SafeAreaView,
   ScrollView,
@@ -227,6 +228,26 @@ export default function EditMedScreen() {
     }
   };
 
+  // Delete medicine
+  const deleteMedicine = async () => {
+    Alert.alert('Usuń lek', 'Czy na pewno chcesz usunąć ten lek?', [
+      { text: 'Anuluj', style: 'cancel' },
+      { text: 'Usuń', style: 'destructive', onPress: async () => {
+        try {
+          await execute('BEGIN TRANSACTION');
+          await execute('DELETE FROM meds_tags WHERE package_uuid = ?', [editPackageId]);
+          await execute('DELETE FROM meds WHERE uuid = ?', [editPackageId]);
+          await execute('COMMIT');
+          router.replace('/');
+        } catch (error) {
+          await execute('ROLLBACK');
+          console.error('Delete failed:', error);
+          Alert.alert('Błąd', 'Nie udało się usunąć leku');
+        }
+      }}
+    ]);
+  };
+
   return (
     <SafeAreaView style={styles.safe}>
       {/* Header and product search */}
@@ -384,6 +405,13 @@ export default function EditMedScreen() {
             <Text style={styles.white}>Zapisz</Text>
           </Pressable>
         </View>
+
+        {/* Delete Button */}
+        <View style={styles.deleteContainer}>
+          <Pressable style={styles.deleteBtn} onPress={deleteMedicine}>
+            <Text style={styles.deleteBtnText}>Usuń ten lek</Text>
+          </Pressable>
+        </View>
       </ScrollView>
 
       {showDatePicker && (
@@ -510,4 +538,22 @@ const styles = StyleSheet.create({
   danger: { backgroundColor: COLORS.DANGER },
   outline: { backgroundColor: 'transparent', borderWidth: 1, borderColor: '#aaa' },
   white: { color: COLORS.TEXT_PRIMARY, fontWeight: '600' },
+
+  deleteContainer: {
+    marginTop: 24,
+    alignItems: 'center',
+  },
+  deleteBtn: {
+    borderWidth: 1,
+    borderColor: COLORS.DANGER_LIGHT,
+    borderRadius: 6,
+    paddingHorizontal: 32,
+    paddingVertical: 12,
+    width: '100%',
+    alignItems: 'center',
+  },
+  deleteBtnText: {
+    color: COLORS.TEXT_PRIMARY,
+    fontSize: 14,
+  },
 });
