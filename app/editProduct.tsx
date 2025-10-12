@@ -1,6 +1,6 @@
 import { Ionicons } from '@expo/vector-icons';
 import { Camera, CameraView } from 'expo-camera';
-import { useRouter } from 'expo-router';
+import { useLocalSearchParams, useRouter } from 'expo-router';
 import { useEffect, useState } from 'react';
 import {
   Alert,
@@ -14,22 +14,23 @@ import {
   View,
 } from 'react-native';
 import { COLORS } from '../src/constants/theme';
-import { addMedicationMetadata, addTag, findMedicineByBarcode, query } from '../src/database/db';
+import { addTag, execute, findMedicineByBarcode, query } from '../src/database/db';
 import { logger } from '../src/utils/logger';
 
 type Row = { uuid: string; name: string };
 
-function AddProductScreen() {
+function EditProductScreen() {
   const router = useRouter();
+  const { editId, returnToEditMed, returnToAdd } = useLocalSearchParams<{ editId?: string; returnToEditMed?: string; returnToAdd?: string }>();
 
-  //  Add Product Form
-  const [name, setName]       = useState('');
+  // Form state
+  const [name, setName] = useState('');
   const [substance, setSubst] = useState('');
-  const [desc, setDesc]       = useState('');
+  const [desc, setDesc] = useState('');
 
-  const [tagQ, setTagQ]   = useState('');
+  const [tagQ, setTagQ] = useState('');
   const [tagsDb, setTagsDb] = useState<Row[]>([]);
-  const [tags, setTags]   = useState<Row[]>([]);
+  const [tags, setTags] = useState<Row[]>([]);
 
   // Barcode scanner
   const [showScanner, setShowScanner] = useState(false);
@@ -38,15 +39,66 @@ function AddProductScreen() {
   const [modalMessage, setModalMessage] = useState('');
   const [isProcessing, setIsProcessing] = useState(false);
 
-  // Clear fields for new product
+  // Clear fields
+  const clearFields = () => {
+    setName(''); setSubst(''); setDesc('');
+    setTags([]); setTagQ(''); setTagsDb([]);
+  };
+
+  // Load existing product data
   useEffect(() => {
-    setName('');
-    setSubst('');
-    setDesc('');
-    setTags([]);
-    setTagQ('');
-    setTagsDb([]);
-  }, []);
+    if (!editId) {
+      if (returnToAdd) {
+        router.replace('/add');
+      } else {
+        router.replace({ pathname: '/editMed', params: { editPackageId: returnToEditMed } });
+      }
+      return;
+    }
+
+    (async () => {
+      try {
+        clearFields();
+        
+        const productData = await query<{
+          name: string;
+          description: string;
+          product_name: string;
+        }>(
+          `SELECT name, description, product_name FROM meds_metadata WHERE uuid = ? LIMIT 1`,
+          [editId]
+        );
+        
+        if (!productData[0]) {
+          if (returnToAdd) {
+            router.replace('/add');
+          } else {
+            router.replace({ pathname: '/editMed', params: { editPackageId: returnToEditMed } });
+          }
+          return;
+        }
+
+        setName(productData[0].name || '');
+        setDesc(productData[0].description || '');
+        setSubst(productData[0].product_name || '');
+        
+        const productTags = await query<Row>(
+          `SELECT t.uuid, t.name FROM tags t
+           JOIN meds_metadata_tags mt ON t.uuid = mt.tag_uuid
+           WHERE mt.metadata_uuid = ?`,
+          [editId]
+        );
+        setTags(productTags);
+      } catch (error) {
+        logger.error('Failed to load product data', error);
+        if (returnToAdd) {
+          router.replace('/add');
+        } else {
+          router.replace({ pathname: '/editMed', params: { editPackageId: returnToEditMed } });
+        }
+      }
+    })();
+  }, [editId]);
 
   // Tag search
   useEffect(() => {
@@ -54,10 +106,8 @@ function AddProductScreen() {
       if (!tagQ) return setTagsDb([]);
       try {
         const results = await query<Row>(
-          `SELECT uuid, name FROM tags
-            WHERE name LIKE ? ORDER BY name
-            LIMIT 10`,
-          [`%${tagQ}%`],
+          `SELECT uuid, name FROM tags WHERE name LIKE ? ORDER BY name LIMIT 10`,
+          [`%${tagQ}%`]
         );
         setTagsDb(results);
       } catch (error) {
@@ -109,43 +159,57 @@ function AddProductScreen() {
     }
   };
 
-  // Saving
+  // Save changes
   const save = async () => {
     if (!name.trim()) {
       Alert.alert('Błąd', 'Pole „Nazwa" jest wymagane.');
       return;
     }
     
-    const prodId = await addMedicationMetadata(
-      name.trim(),
-      desc.trim(),
-      tags.map(t => t.uuid),
-    );
-    router.replace({ pathname: '/add', params: { preselect: prodId } });
+    try {
+      await execute(
+        `UPDATE meds_metadata SET name = ?, description = ?, product_name = ? WHERE uuid = ?`,
+        [name.trim(), desc.trim(), substance.trim(), editId]
+      );
+      
+      await execute(`DELETE FROM meds_metadata_tags WHERE metadata_uuid = ?`, [editId]);
+      for (const tag of tags) {
+        await execute(
+          `INSERT INTO meds_metadata_tags (metadata_uuid, tag_uuid) VALUES (?, ?)`,
+          [editId, tag.uuid]
+        );
+      }
+      
+      if (returnToAdd) {
+        router.replace({ pathname: '/add', params: { preselect: editId } });
+      } else {
+        router.replace({ pathname: '/editMed', params: { editPackageId: returnToEditMed } });
+      }
+    } catch (error) {
+      console.error('Save failed:', error);
+      Alert.alert('Błąd', 'Nie udało się zapisać zmian');
+    }
   };
 
   const cancel = () => {
-    setName('');
-    setSubst('');
-    setDesc('');
-    setTags([]);
-    setTagQ('');
-    setTagsDb([]);
-    router.replace('/add');
+    if (returnToAdd) {
+      router.replace('/add');
+    } else {
+      router.replace({ pathname: '/editMed', params: { editPackageId: returnToEditMed } });
+    }
   };
 
-  /*  UI  */
   return (
     <SafeAreaView style={styles.safe}>
       {/* Header */}
       <View style={styles.header}>
-        <Text style={styles.headerTxt}>Dodawanie{'\n'}nowego produktu</Text>
+        <Text style={styles.headerTxt}>Edycja{'\n'}produktu</Text>
         <Pressable style={styles.scanButton} onPress={openCamera}>
           <Ionicons name="camera" size={24} color={COLORS.TEXT_PRIMARY} />
         </Pressable>
       </View>
 
-      {/* Frame */}
+      {/* Form */}
       <ScrollView style={styles.body} keyboardShouldPersistTaps="handled" indicatorStyle="white">
         <Text style={styles.label}>Nazwa</Text>
         <TextInput style={styles.input} value={name} onChangeText={setName} />
@@ -267,9 +331,9 @@ function AddProductScreen() {
   );
 }
 
-export default AddProductScreen;
+export default EditProductScreen;
 
-/*  Styles  */
+/* Styles */
 const styles = StyleSheet.create({
   safe: { flex: 1, backgroundColor: COLORS.BG },
 

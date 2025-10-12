@@ -220,7 +220,7 @@ export default function MedListScreen() {
   const renderItem = ({ item }: { item: MedItem }) => (
     <Pressable 
       style={styles.card}
-      onPress={() => router.push({ pathname: '/add', params: { editPackageId: item.package_uuid } })}
+      onPress={() => router.push({ pathname: '/editMed', params: { editPackageId: item.package_uuid } })}
     >
       <Text style={styles.cardTitle}>{item.name}</Text>
       {item.description && (

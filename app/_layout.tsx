@@ -123,6 +123,18 @@ export default function RootLayout() {
           }}
         />
         <Tabs.Screen
+          name="editMed"
+          options={{
+            href: null,
+          }}
+        />
+        <Tabs.Screen
+          name="editProduct"
+          options={{
+            href: null,
+          }}
+        />
+        <Tabs.Screen
           name="editTags"
           options={{
             href: null,

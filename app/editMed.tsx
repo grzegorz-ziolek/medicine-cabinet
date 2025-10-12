@@ -14,83 +14,110 @@ import {
 } from 'react-native';
 
 import { COLORS } from '../src/constants/theme';
-import { addMedicationPackage, addTag, execute, query } from '../src/database/db';
+import { addTag, execute, query } from '../src/database/db';
 
 type Row = { uuid: string; name: string };
 
-export default function AddMedScreen() {
+export default function EditMedScreen() {
   const router = useRouter();
-  const { preselect } = useLocalSearchParams<{ preselect?: string }>();
+  const { editPackageId } = useLocalSearchParams<{ editPackageId?: string }>();
 
-  // Add form
+  // Form state
   const [productQ, setProductQ] = useState('');
   const [products, setProducts] = useState<Row[]>([]);
-  const [product,  setProduct]  = useState<Row | null>(null);
+  const [originalProduct, setOriginalProduct] = useState<Row | null>(null);
+  const [currentProduct, setCurrentProduct] = useState<Row | null>(null);
 
   const [expiry, setExpiry] = useState('');
-  const [qty,    setQty]    = useState('');
+  const [qty, setQty] = useState('');
   const [showDatePicker, setShowDatePicker] = useState(false);
 
-  const [tagQ,   setTagQ]   = useState('');
+  const [tagQ, setTagQ] = useState('');
   const [tagsDb, setTagsDb] = useState<Row[]>([]);
-  const [tags,   setTags]   = useState<Row[]>([]);
+  const [tags, setTags] = useState<Row[]>([]);
   const [saving, setSaving] = useState(false);
-  const [userCleared, setUserCleared] = useState(false);
 
-  // Return from addProduct with ?preselect=uuid
+  // Clear fields
+  const clearFields = () => {
+    setProductQ(''); setProducts([]); 
+    setOriginalProduct(null); setCurrentProduct(null);
+    setExpiry(''); setQty('');
+    setTagQ(''); setTagsDb([]); setTags([]);
+  };
+
+  // Load medicine data for editing
   useEffect(() => {
-    if (!preselect || product || userCleared) return;
-    setUserCleared(false);
-    query<Row>(
-      `SELECT uuid, name FROM meds_metadata WHERE uuid = ? LIMIT 1`,
-      [preselect],
-    ).then(r => {
-      if (r[0]) {
-        setProduct(r[0]);
-        router.replace('/add');
-      }
-    });
-  }, [preselect, product, userCleared]);
+    if (!editPackageId) {
+      router.replace('/');
+      return;
+    }
 
-
-
-  // Reset
-  useFocusEffect(
-    React.useCallback(() => {
-      if (preselect) return;
-
-      setProductQ('');   setProducts([]);   setProduct(null);
-      setExpiry('');     setQty('');
-      setTagQ('');       setTagsDb([]);     setTags([]);
-    }, [preselect])
-  );
-
-  // Refresh product data on focus
-  useFocusEffect(
-    React.useCallback(() => {
-      if (!preselect || !product) return;
-      
-      (async () => {
-        const refreshedProduct = await query<Row>(
-          `SELECT uuid, name FROM meds_metadata WHERE uuid = ? LIMIT 1`,
-          [preselect]
-        );
-        if (refreshedProduct[0]) {
-          setProduct(refreshedProduct[0]);
+    (async () => {
+      try {
+        clearFields();
+        
+        let retries = 0;
+        while (retries < 10) {
+          try {
+            await query('SELECT 1');
+            break;
+          } catch (e) {
+            retries++;
+            await new Promise(resolve => setTimeout(resolve, 100));
+          }
         }
-      })();
-    }, [preselect, product])
-  );
+
+        // Load medicine package data
+        const packageData = await query<{
+          metadata_uuid: string;
+          quantity: number;
+          expiration_date: string;
+        }>(
+          `SELECT metadata_uuid, quantity, expiration_date FROM meds WHERE uuid = ? LIMIT 1`,
+          [editPackageId]
+        );
+        
+        if (!packageData[0]) {
+          router.replace('/');
+          return;
+        }
+
+        const pkg = packageData[0];
+        setQty(pkg.quantity?.toString() || '');
+        setExpiry(pkg.expiration_date || '');
+        
+        // Load product metadata
+        const productData = await query<Row>(
+          `SELECT uuid, name FROM meds_metadata WHERE uuid = ? LIMIT 1`,
+          [pkg.metadata_uuid]
+        );
+        if (productData[0]) {
+          setOriginalProduct(productData[0]);
+          setCurrentProduct(productData[0]);
+        }
+        
+        // Load associated package tags
+        const packageTags = await query<Row>(
+          `SELECT t.uuid, t.name FROM tags t
+           JOIN meds_tags mt ON t.uuid = mt.tag_uuid
+           WHERE mt.package_uuid = ?`,
+          [editPackageId]
+        );
+        setTags(packageTags);
+      } catch (error) {
+        console.error('Failed to load medicine package data', error);
+        router.replace('/');
+      }
+    })();
+  }, [editPackageId]);
 
   // Live search of products
   useEffect(() => {
     const timeoutId = setTimeout(async () => {
       if (!productQ) return setProducts([]);
       const results = await query<Row>(
-        `SELECT uuid, name
-           FROM meds_metadata
-          WHERE name LIKE ? ORDER BY name LIMIT 10`,
-        [`%${productQ}%`],
+        `SELECT uuid, name FROM meds_metadata WHERE name LIKE ? ORDER BY name LIMIT 10`,
+        [`%${productQ}%`]
       );
       setProducts(results);
     }, 300);
@@ -102,27 +129,25 @@ export default function AddMedScreen() {
     const timeoutId = setTimeout(async () => {
       if (!tagQ) return setTagsDb([]);
       const results = await query<Row>(
-        `SELECT uuid, name
-           FROM tags
-          WHERE name LIKE ? ORDER BY name LIMIT 10`,
-        [`%${tagQ}%`],
+        `SELECT uuid, name FROM tags WHERE name LIKE ? ORDER BY name LIMIT 10`,
+        [`%${tagQ}%`]
       );
       setTagsDb(results);
     }, 300);
     return () => clearTimeout(timeoutId);
   }, [tagQ]);
 
-  // Inheritence of product tags
+  // Add product tags when product changes
   useEffect(() => {
-    if (!product || saving) return;
+    if (!currentProduct || saving) return;
     (async () => {
       const productTags = await query<Row>(
         `SELECT t.uuid, t.name FROM tags t
          JOIN meds_metadata_tags mt ON t.uuid = mt.tag_uuid
          WHERE mt.metadata_uuid = ?`,
-        [product.uuid]
+        [currentProduct.uuid]
       );
-      // Add product tags to current package tags
+      
       setTags(prevTags => {
         const newTags = [...prevTags];
         for (const productTag of productTags) {
@@ -133,35 +158,65 @@ export default function AddMedScreen() {
         return newTags;
       });
     })();
-  }, [product, saving]);
+  }, [currentProduct?.uuid, saving]);
 
-  // Saving
+  // Refresh product name on screen focus
+  useFocusEffect(
+    React.useCallback(() => {
+      if (!currentProduct?.uuid) return;
+      
+      (async () => {
+        try {
+          const refreshedProduct = await query<Row>(
+            `SELECT uuid, name FROM meds_metadata WHERE uuid = ? LIMIT 1`,
+            [currentProduct.uuid]
+          );
+          if (refreshedProduct[0] && refreshedProduct[0].name !== currentProduct.name) {
+            setCurrentProduct(refreshedProduct[0]);
+          }
+        } catch (error) {
+          console.error('Failed to refresh product data', error);
+        }
+      })();
+    }, [])
+  );
+
+
+
+  // Save changes
   const save = async () => {
-    if (!product || saving) return;
+    if (!currentProduct || saving) {
+      console.warn('Cannot save: no product selected');
+      return;
+    }
     setSaving(true);
     
     try {
-      // Create new medicine package
-      const packageId = await addMedicationPackage(
-        product.uuid,
-        qty ? parseInt(qty, 10) || null : null,
-        expiry || null,
+      const metadataUuid = currentProduct.uuid;
+      if (!metadataUuid) {
+        throw new Error('Product UUID is missing');
+      }
+      
+      // Update medicine package
+      await execute(
+        `UPDATE meds SET metadata_uuid = ?, quantity = ?, expiration_date = ?, edited_at = ? WHERE uuid = ?`,
+        [metadataUuid, qty ? parseInt(qty, 10) || null : null, expiry || null, new Date().toISOString(), editPackageId]
       );
-      // Add tags with transaction
-      if (tags.length > 0) {
-        await execute('BEGIN TRANSACTION');
-        try {
-          for (const t of tags)
-            await execute(
-              `INSERT OR IGNORE INTO meds_tags (package_uuid, tag_uuid)
-               VALUES (?, ?)`,
-              [packageId, t.uuid],
-            );
-          await execute('COMMIT');
-        } catch (error) {
-          await execute('ROLLBACK');
-          throw error;
+      
+      // Update tags for the package
+      await execute('BEGIN TRANSACTION');
+      try {
+        await execute(`DELETE FROM meds_tags WHERE package_uuid = ?`, [editPackageId]);
+        for (const t of tags) {
+          await execute(
+            `INSERT OR IGNORE INTO meds_tags (package_uuid, tag_uuid) VALUES (?, ?)`,
+            [editPackageId, t.uuid]
+          );
         }
+        await execute('COMMIT');
+      } catch (error) {
+        await execute('ROLLBACK');
+        throw error;
       }
       
       router.replace('/');
@@ -172,34 +227,33 @@ export default function AddMedScreen() {
     }
   };
 
-  /*  UI  */
   return (
     <SafeAreaView style={styles.safe}>
       {/* Header and product search */}
       <View style={styles.header}>
         <View style={styles.searchWrap}>
-          {!product ? (
+          {!currentProduct ? (
             <Ionicons name="search" size={18} color={COLORS.TEXT_MUTED} style={{ marginHorizontal: 8 }} />
           ) : (
             <View style={{ width: 34 }} />
           )}
           <TextInput
             style={styles.searchInput}
-            placeholder="Wpisz nazwę leku do dodania"
+            placeholder="Wpisz nazwę leku do edycji"
             placeholderTextColor={COLORS.TEXT_PLACEHOLDER}
-            value={product ? product.name : productQ}
-            editable={!product}
+            value={currentProduct ? currentProduct.name : productQ}
+            editable={!currentProduct}
             onChangeText={(txt) => {
-              if (product) setProduct(null);
+              if (currentProduct) setCurrentProduct(null);
               setProductQ(txt);
             }}
           />
-          {product && (
+          {currentProduct && (
             <View style={{ flexDirection: 'row', marginHorizontal: 16 }}>
-              <Pressable onPress={() => router.push({ pathname: '/editProduct', params: { editId: product.uuid, returnToAdd: 'true' } })}>
+              <Pressable onPress={() => router.push({ pathname: '/editProduct', params: { editId: currentProduct.uuid, returnToEditMed: editPackageId } })}>
                 <Ionicons name="pencil" size={18} color={COLORS.TEXT_MUTED} style={{ marginRight: 16 }} />
               </Pressable>
-              <Pressable onPress={() => { setUserCleared(true); setProduct(null); setProductQ(''); router.replace('/add'); }}>
+              <Pressable onPress={() => { setCurrentProduct(null); setProductQ(''); }}>
                 <Ionicons name="close" size={18} color={COLORS.TEXT_MUTED} />
               </Pressable>
             </View>
@@ -208,7 +262,7 @@ export default function AddMedScreen() {
       </View>
 
       {/* Dropdown */}
-      {productQ && !product && (
+      {productQ && !currentProduct && (
         <View style={styles.productDropdown}>
           <ScrollView 
             style={[styles.scrollableResults, { height: Math.min(products.length * 48, 192) }]}
@@ -218,7 +272,7 @@ export default function AddMedScreen() {
             {products.map(item => (
               <Pressable
                 key={item.uuid}
-                onPress={() => { setProduct(item); setProductQ(''); }}
+                onPress={() => { setCurrentProduct(item); setProductQ(''); }}
               >
                 <Text style={styles.ddItem}>{item.name}</Text>
               </Pressable>
@@ -230,7 +284,7 @@ export default function AddMedScreen() {
         </View>
       )}
 
-      {/* Frame */}
+      {/* Form */}
       <ScrollView
         keyboardShouldPersistTaps="handled"
         style={styles.body}
@@ -323,9 +377,7 @@ export default function AddMedScreen() {
 
         {/* Buttons */}
         <View style={styles.row}>
-          <Pressable style={[styles.btn, styles.danger]} onPress={() => {
-            router.replace('/');
-          }}>
+          <Pressable style={[styles.btn, styles.danger]} onPress={() => router.replace('/')}>
             <Text style={styles.white}>Odrzuć</Text>
           </Pressable>
           <Pressable style={[styles.btn, styles.outline]} onPress={save}>
