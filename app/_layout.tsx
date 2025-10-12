@@ -123,6 +123,12 @@ export default function RootLayout() {
           }}
         />
         <Tabs.Screen
+          name="editTags"
+          options={{
+            href: null,
+          }}
+        />
+        <Tabs.Screen
           name="settings"
           options={{
             title: 'Ustawienia',

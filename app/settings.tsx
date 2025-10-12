@@ -303,6 +303,10 @@ export default function SettingsScreen() {
         )}>
           <Text style={styles.btnTxt}>Eksportuj dane</Text>
         </Pressable>
+        
+        <Pressable style={styles.btn} onPress={() => router.push('/editTags')}>
+          <Text style={styles.btnTxt}>Edytuj tagi</Text>
+        </Pressable>
 
         <Pressable
           style={[styles.btn, styles.danger]}
