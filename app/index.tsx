@@ -96,24 +96,27 @@ export default function MedListScreen() {
       params.push(activeFilters.customDateFrom, activeFilters.customDateTo);
     }
     
-    // Tag filters
+    // Tag filters (AND logic)
     if (activeFilters.selectedTags.length > 0) {
-      const tagPlaceholders = activeFilters.selectedTags.map(() => '?').join(',');
-      const tagCondition = `(
+      const tagConditions = activeFilters.selectedTags.map(() => `(
         m.uuid IN (
-          SELECT mt.package_uuid FROM meds_tags mt WHERE mt.tag_uuid IN (${tagPlaceholders})
+          SELECT mt.package_uuid FROM meds_tags mt WHERE mt.tag_uuid = ?
         ) OR
         mm.uuid IN (
-          SELECT mmt.metadata_uuid FROM meds_metadata_tags mmt WHERE mmt.tag_uuid IN (${tagPlaceholders})
+          SELECT mmt.metadata_uuid FROM meds_metadata_tags mmt WHERE mmt.tag_uuid = ?
         )
-      )`;
+      )`).join(' AND ');
       
       if (whereClause) {
-        whereClause += ` AND ${tagCondition}`;
+        whereClause += ` AND (${tagConditions})`;
       } else {
-        whereClause = `WHERE ${tagCondition}`;
+        whereClause = `WHERE (${tagConditions})`;
       }
-      params.push(...activeFilters.selectedTags, ...activeFilters.selectedTags);
+      
+      // Add each tag twice (for package tags and metadata tags)
+      activeFilters.selectedTags.forEach(tag => {
+        params.push(tag, tag);
+      });
     }
 
     const rows = await query<MedItem>(
