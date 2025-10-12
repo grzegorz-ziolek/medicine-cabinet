@@ -264,6 +264,10 @@ export default function SettingsScreen() {
 
       {/* Frame */}
       <View style={styles.body}>
+        <Pressable style={styles.btn} onPress={() => router.push('/editTags')}>
+          <Text style={styles.btnTxt}>Edytuj tagi</Text>
+        </Pressable>
+        
         <Pressable style={styles.btn} onPress={handleDownloadDatabase}>
           <Text style={styles.btnTxt}>Pobierz bazę leków</Text>
         </Pressable>
@@ -302,10 +306,6 @@ export default function SettingsScreen() {
           }
         )}>
           <Text style={styles.btnTxt}>Eksportuj dane</Text>
-        </Pressable>
-        
-        <Pressable style={styles.btn} onPress={() => router.push('/editTags')}>
-          <Text style={styles.btnTxt}>Edytuj tagi</Text>
         </Pressable>
 
         <Pressable

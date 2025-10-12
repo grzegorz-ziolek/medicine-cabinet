@@ -148,7 +148,7 @@ const styles = StyleSheet.create({
   header: {
     backgroundColor: COLORS.BG,
     flexDirection: 'row',
-    alignItems: 'center',
+    alignItems: 'flex-end',
     paddingHorizontal: 16,
     paddingTop: 8,
     paddingBottom: 24,
@@ -158,11 +158,11 @@ const styles = StyleSheet.create({
     borderBottomColor: COLORS.TEXT_PLACEHOLDER_DARK,
   },
   backButton: {
-    padding: 8,
+    padding: 0,
   },
   headerTitle: {
     color: COLORS.TEXT_PRIMARY,
-    fontSize: 20,
+    fontSize: 24,
     fontWeight: '600',
   },
   headerSpacer: {
@@ -232,8 +232,10 @@ const styles = StyleSheet.create({
     marginBottom: 20,
   },
   saveButton: {
-    backgroundColor: COLORS.DANGER,
-    borderRadius: 8,
+    backgroundColor: 'transparent',
+    borderWidth: 1,
+    borderColor: COLORS.WHITE,
+    borderRadius: 6,
     paddingHorizontal: 24,
     paddingVertical: 12,
   },
