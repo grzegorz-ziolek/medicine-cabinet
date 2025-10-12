@@ -32,5 +32,5 @@ export async function seedDemoData(): Promise<void> {
   );
   await addMedicationPackage(cetirizineMeta, 30, '2026-05-20');
 
-  console.log('💊  Demo data seeded!');
+  console.log(' Demo data seeded!');
 }
