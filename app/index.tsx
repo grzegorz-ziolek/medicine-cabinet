@@ -532,7 +532,7 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     flexWrap: 'wrap',
     gap: 8,
-    marginBottom: 24,
+    marginBottom: 32,
   },
   filterTag: {
     backgroundColor: COLORS.TAG,
