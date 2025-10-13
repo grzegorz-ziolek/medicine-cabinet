@@ -42,14 +42,14 @@ export async function initDatabase(): Promise<void> {
        FOREIGN KEY (metadata_uuid) REFERENCES meds_metadata(uuid) ON DELETE CASCADE,
        FOREIGN KEY (tag_uuid)      REFERENCES tags(uuid)         ON DELETE CASCADE
      );`,
-    // Meds
+     // Meds
     `CREATE TABLE IF NOT EXISTS meds (
        uuid            TEXT PRIMARY KEY NOT NULL,
        metadata_uuid   TEXT NOT NULL,
        quantity        INTEGER,
-       expiration_date TEXT,
-       created_at      TEXT,
-       edited_at       TEXT,
+       expiration_date DATETIME,
+       created_at      DATETIME,
+       edited_at       DATETIME,
        FOREIGN KEY (metadata_uuid) REFERENCES meds_metadata(uuid) ON DELETE CASCADE
      );`,
     // Meds <> Tags
