@@ -6,6 +6,7 @@ let db: SQLite.SQLiteDatabase | null = null;
 export async function initDatabase(): Promise<void> {
   db = await SQLite.openDatabaseAsync('apteczka.db');
 
+  await assertDB().runAsync('PRAGMA foreign_keys = ON;');
   const statements = [
     // Tags
     `CREATE TABLE IF NOT EXISTS tags (
@@ -200,6 +201,8 @@ export async function importMedicineFromCSV(
   leaflet: string,
   labelLeaflet: string
 ): Promise<void> {
+      await assertDB().runAsync('BEGIN');
+  try {
   const existing = await query<{ uuid: string; description: string }>(
     `SELECT uuid, description FROM meds_metadata WHERE name = ? LIMIT 1`,
     [name.trim()]
@@ -208,34 +211,39 @@ export async function importMedicineFromCSV(
   let metadataUuid: string;
   
   if (existing.length) {
-    metadataUuid = existing[0].uuid;
-    const mergedDesc = existing[0].description ? `${existing[0].description}\n\n${description}` : description;
-    await execute(
-      `UPDATE meds_metadata SET 
-        description = ?, product_id = ?, product_name = ?, previous_name = ?,
-        administration_route = ?, strength = ?, pharmaceutical_form = ?,
-        active_substance = ?, leaflet = ?, label_leaflet = ?
-       WHERE uuid = ?`,
-      [mergedDesc, productId, productName, previousName, administrationRoute, 
-       strength, pharmaceuticalForm, activeSubstance, leaflet, labelLeaflet, metadataUuid]
-    );
-    // Clear existing packaging data
-    await execute(`DELETE FROM meds_packaging WHERE metadata_uuid = ?`, [metadataUuid]);
-  } else {
-    metadataUuid = uuid.v4().toString();
-    await execute(
-      `INSERT INTO meds_metadata 
-        (uuid, name, description, product_id, product_name, previous_name,
-         administration_route, strength, pharmaceutical_form,
-         active_substance, leaflet, label_leaflet)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-      [metadataUuid, name.trim(), description, productId, productName, previousName,
-       administrationRoute, strength, pharmaceuticalForm,
-       activeSubstance, leaflet, labelLeaflet]
-    );
+      metadataUuid = existing[0].uuid;
+      const mergedDesc = existing[0].description ? `${existing[0].description}\n\n${description}` : description;
+      await execute(
+        `UPDATE meds_metadata SET 
+          description = ?, product_id = ?, product_name = ?, previous_name = ?,
+          administration_route = ?, strength = ?, pharmaceutical_form = ?,
+          active_substance = ?, leaflet = ?, label_leaflet = ?
+        WHERE uuid = ?`,
+        [mergedDesc, productId, productName, previousName, administrationRoute, 
+        strength, pharmaceuticalForm, activeSubstance, leaflet, labelLeaflet, metadataUuid]
+      );
+      // Clear existing packaging data
+      await execute(`DELETE FROM meds_packaging WHERE metadata_uuid = ?`, [metadataUuid]);
+    } else {
+      metadataUuid = uuid.v4().toString();
+      await execute(
+        `INSERT INTO meds_metadata 
+          (uuid, name, description, product_id, product_name, previous_name,
+          administration_route, strength, pharmaceutical_form,
+          active_substance, leaflet, label_leaflet)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+        [metadataUuid, name.trim(), description, productId, productName, previousName,
+        administrationRoute, strength, pharmaceuticalForm,
+        activeSubstance, leaflet, labelLeaflet]
+      );
+    }
+    
+    await parseAndInsertPackaging(metadataUuid, packaging);
+    await assertDB().runAsync('COMMIT');
+  } catch (e) {
+    await assertDB().runAsync('ROLLBACK');
+    throw e;
   }
-  
-  await parseAndInsertPackaging(metadataUuid, packaging);
 }
 
 export async function findMedicineByBarcode(barcode: string): Promise<{
