@@ -96,7 +96,7 @@ export default function MedListScreen() {
       params.push(activeFilters.customDateFrom, activeFilters.customDateTo);
     }
     
-    // Tag filters (AND logic)
+    // Tag filters
     if (activeFilters.selectedTags.length > 0) {
       const tagConditions = activeFilters.selectedTags.map(() => `(
         m.uuid IN (
@@ -113,7 +113,7 @@ export default function MedListScreen() {
         whereClause = `WHERE (${tagConditions})`;
       }
       
-      // Add each tag twice (for package tags and metadata tags)
+      // Add each tag twice; one for package and metadata
       activeFilters.selectedTags.forEach(tag => {
         params.push(tag, tag);
       });

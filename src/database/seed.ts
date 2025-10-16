@@ -1,4 +1,3 @@
-// src/database/seed.ts
 import { addMedicationMetadata, addMedicationPackage, addTag, query } from './db';
 
 // TEST SEEDING FOR EMPTY DB
